@@ -1001,7 +1001,7 @@ AS_IF([test "x$HAVE_DBUS" = "x1"], AC_DEFINE([HAVE_DBUS], 1, [Have D-Bus.]))
 
 PA_MACHINE_ID="${sysconfdir}/machine-id"
 AX_DEFINE_DIR(PA_MACHINE_ID, PA_MACHINE_ID, [D-Bus machine-id file])
-PA_MACHINE_ID_FALLBACK="${localstatedir}/lib/dbus/machine-id"
+PA_MACHINE_ID_FALLBACK="/var/lib/dbus/machine-id"
 AX_DEFINE_DIR(PA_MACHINE_ID_FALLBACK, PA_MACHINE_ID_FALLBACK,
 	      [Fallback machine-id file])
 
@@ -1178,6 +1178,25 @@ AS_IF([test "x$enable_xen" = "xyes" && test "x$HAVE_XEN" = "x0"],
 AC_SUBST(XEN_CFLAGS)
 AC_SUBST(XEN_LIBS)
 AM_CONDITIONAL([HAVE_XEN], [test "x$HAVE_XEN" = x1])
+
+#### ogon support (optionnal) #####
+
+AC_ARG_ENABLE([ogon], AS_HELP_STRING([--disable-ogon],[Disable optional ogon driver]))
+
+AS_IF([test "x$enable_ogon" != "xno"],
+    [
+		PKG_CHECK_MODULES(OGON, [winpr2 freerdp2 freerdp-server2], [HAVE_OGON=1], [HAVE_OGON=0])
+    ],
+    HAVE_OGON=0)
+
+AS_IF([test "x$enable_ogon" = "xyes" && test "x$HAVE_OGON" = "x0"],
+    [AC_MSG_ERROR([*** ogon support not found])],
+    [AC_DEFINE([HAVE_OGON], 1, [Have ogon])])
+
+AC_SUBST(OGON_CFLAGS)
+AC_SUBST(OGON_LIBS)
+AC_SUBST(HAVE_OGON)
+AM_CONDITIONAL([HAVE_OGON], [test "x$HAVE_OGON" = x1])
 
 #### gcov support (optional) #####
 
@@ -1532,6 +1551,7 @@ AS_IF([test "x$HAVE_JACK" = "x1"], ENABLE_JACK=yes, ENABLE_JACK=no)
 AS_IF([test "x$HAVE_LIBASYNCNS" = "x1"], ENABLE_LIBASYNCNS=yes, ENABLE_LIBASYNCNS=no)
 AS_IF([test "x$HAVE_LIRC" = "x1"], ENABLE_LIRC=yes, ENABLE_LIRC=no)
 AS_IF([test "x$HAVE_XEN" = "x1"], ENABLE_XEN=yes, ENABLE_XEN=no)
+AS_IF([test "x$HAVE_OGON" = "x1"], ENABLE_OGON=yes, ENABLE_OGON=no)
 AS_IF([test "x$HAVE_DBUS" = "x1"], ENABLE_DBUS=yes, ENABLE_DBUS=no)
 AS_IF([test "x$HAVE_UDEV" = "x1"], ENABLE_UDEV=yes, ENABLE_UDEV=no)
 AS_IF([test "x$HAVE_SYSTEMD_DAEMON" = "x1"], ENABLE_SYSTEMD_DAEMON=yes, ENABLE_SYSTEMD_DAEMON=no)
@@ -1594,6 +1614,7 @@ echo "
     Enable Async DNS:              ${ENABLE_LIBASYNCNS}
     Enable LIRC:                   ${ENABLE_LIRC}
     Enable Xen PV driver:          ${ENABLE_XEN}
+    Enable ogon:                   ${ENABLE_OGON}
     Enable D-Bus:                  ${ENABLE_DBUS}
       Enable BlueZ 4:              ${ENABLE_BLUEZ_4}
       Enable BlueZ 5:              ${ENABLE_BLUEZ_5}

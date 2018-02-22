@@ -1260,6 +1260,11 @@ endif
 
 pulselibexec_PROGRAMS =
 
+if HAVE_OGON
+modlibexec_LTLIBRARIES += \
+	module-ogon-sink.la
+endif
+
 if HAVE_ALSA
 modlibexec_LTLIBRARIES += \
 		libalsa-util.la \
@@ -1546,6 +1551,11 @@ SYMDEF_FILES += \
 		module-esound-sink-symdef.h
 endif
 
+if HAVE_OGON
+SYMDEF_FILES += \
+		module-ogon-sink-symdef.h
+endif
+
 EXTRA_DIST += $(SYMDEF_FILES)
 BUILT_SOURCES += $(SYMDEF_FILES) builddirs
 
@@ -1631,6 +1641,14 @@ module_native_protocol_fd_la_SOURCES = modules/module-native-protocol-fd.c
 module_native_protocol_fd_la_CFLAGS = $(AM_CFLAGS)
 module_native_protocol_fd_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_native_protocol_fd_la_LIBADD = $(MODULE_LIBADD) libprotocol-native.la
+
+# ogon
+if HAVE_OGON
+module_ogon_sink_la_SOURCES = modules/ogon/ogon-sink.c
+module_ogon_sink_la_CFLAGS = $(AM_CFLAGS) $(OGON_CFLAGS) $(DBUS_CFLAGS)
+module_ogon_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
+module_ogon_sink_la_LIBADD = $(MODULE_LIBADD) $(OGON_LIBS) $(DBUS_LIBS)
+endif
 
 # EsounD protocol
 
