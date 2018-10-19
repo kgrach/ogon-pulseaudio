@@ -630,7 +630,6 @@ static void sound_channel_io_callback(pa_iochannel *io, void *userdata) {
 
 static int run_sound_channel(struct userdata *u) {
 	HANDLE channelEvent;
-	wStream *s;
 	int ret = -1;
 	RdpsndServerContext *sndCtxt;
 
@@ -675,19 +674,13 @@ static int run_sound_channel(struct userdata *u) {
     sndCtxt->data = u;
     sndCtxt->num_server_formats = 1;
     sndCtxt->server_formats = serverFormats;
-    sndCtxt->src_format = serverFormats[0];
+    sndCtxt->src_format = &serverFormats[0];
     sndCtxt->Activated = rdpSoundServerActivated;
 
 	if (sndCtxt->Initialize(sndCtxt, FALSE) != CHANNEL_RC_OK) {
 		pa_log_info("looks like sound channel is not ready yet");
 		return -1;
 	}
-
-	s = Stream_New(NULL, 4096);
-	if (!s)
-		return -1;
-	if (rdpsnd_server_send_formats(sndCtxt, s) != CHANNEL_RC_OK)
-		goto out;
 
 	u->state = OGON_SINK_STATE_NEGOCIATING;
 	channelEvent = rdpsnd_server_get_event_handle(u->rdpSoundServer);
@@ -709,7 +702,6 @@ static int run_sound_channel(struct userdata *u) {
 	ret = 0;
 
 out:
-	Stream_Free(s, TRUE);
 	return ret;
 }
 
