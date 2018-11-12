@@ -47,6 +47,7 @@
 
 #include <winpr/wtsapi.h>
 #include <freerdp/server/rdpsnd.h>
+#include <freerdp/server/server-common.h>
 
 #include "module-ogon-sink-symdef.h"
 
@@ -391,23 +392,60 @@ finish:
     pa_log_debug("Thread shutting down");
 }
 
-static AUDIO_FORMAT serverFormats[] = {
-    /* wFormatTag,       nChannels, nSamplesPerSec, nAvgBytesPerSec, nBlockAlign, wBitsPerSample, cbSize, data; */
-    { WAVE_FORMAT_PCM,   2,         22050,          88200,           4,           16,             0,      NULL },
-    { 0,                 0,         0,              0,               0,           0,              0,      NULL },
-};
+static BOOL select_compatible_audio_format(RdpsndServerContext* context) {
+    UINT16 i = 0, j = 0;
+    UINT16 serverFormat, clientFormat;
 
-static int find_matching_format(AUDIO_FORMAT *clientFormats, int nbFormats, AUDIO_FORMAT *servFormats)
-{
-    /* TODO: for now we're just matching any PCM format */
-    int i;
-
-    for (i = 0; i < nbFormats; i++) {
-        if (clientFormats[i].wFormatTag == WAVE_FORMAT_PCM)
-            return i;
+    for (i = 0; i < context->num_client_formats; i++) {
+        pa_log_debug("client format #%u: %s (%u channels, %u samples/sec, %u bits/sample)",
+                     i,
+                     audio_format_get_tag_string(context->client_formats[i].wFormatTag),
+                     context->server_formats[i].nChannels,
+                     context->server_formats[i].nSamplesPerSec,
+                     context->server_formats[i].wBitsPerSample);
     }
 
-    return -1;
+    for (i = 0; i < context->num_server_formats; i++) {
+        pa_log_debug("server format #%u: %s (%u channels, %u samples/sec, %u bits/sample)",
+                     i,
+                     audio_format_get_tag_string(context->server_formats[i].wFormatTag),
+                     context->server_formats[i].nChannels,
+                     context->server_formats[i].nSamplesPerSec,
+                     context->server_formats[i].wBitsPerSample);
+    }
+
+    /* TODO: since we do not yet use the freerd dsp encoder, we currently only
+             accept PCM formats and simply select the first compatible match */
+
+    for (i = 0; i < context->num_client_formats; i++) {
+        if (context->client_formats[i].wFormatTag != WAVE_FORMAT_PCM)
+            continue;
+
+        for (j = 0; j < context->num_server_formats; j++) {
+            if (audio_format_compatible(&context->server_formats[j], &context->client_formats[i])) {
+                clientFormat = i;
+                serverFormat = j;
+                goto setFormats;
+            }
+        }
+    }
+
+     pa_log_error("unable to find a matching format");
+     return FALSE;
+
+
+setFormats:
+    pa_log_debug("selected server format: #%u", serverFormat);
+    pa_log_debug("selected client format: #%u", clientFormat);
+
+    context->src_format = &context->server_formats[serverFormat];
+
+    if (context->SelectFormat(context, clientFormat) != CHANNEL_RC_OK) {
+        pa_log_error("error setting client audio format");
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 static void pa_sample_spec_from_rdp(pa_sample_spec *spec, AUDIO_FORMAT *format) {
@@ -439,7 +477,6 @@ static void pa_sample_spec_from_rdp(pa_sample_spec *spec, AUDIO_FORMAT *format) 
 
 static void rdpSoundServerActivated(RdpsndServerContext* context) {
     char defaultSinkName[256];
-    int clientFormat;
     pa_sink_new_data data;
     pa_sink *sink;
     struct userdata *u = (struct userdata *)context->data;
@@ -453,15 +490,8 @@ static void rdpSoundServerActivated(RdpsndServerContext* context) {
     pa_iochannel_free(u->io);
     u->io = NULL;
 
-
-    clientFormat = find_matching_format(context->client_formats, context->num_client_formats, serverFormats);
-    if (clientFormat < 0) {
-        pa_log_error("unable to find a matching format");
-        return;
-    }
-
-    if (context->SelectFormat(context, clientFormat) != CHANNEL_RC_OK) {
-        pa_log_error("error setting format");
+    if (!select_compatible_audio_format(context)) {
+        pa_log_error("could not select audio formats");
         return;
     }
 
@@ -668,9 +698,14 @@ static int run_sound_channel(struct userdata *u) {
     }
 
     sndCtxt->data = u;
-    sndCtxt->num_server_formats = 1;
-    sndCtxt->server_formats = serverFormats;
-    sndCtxt->src_format = &serverFormats[0];
+    sndCtxt->num_server_formats = server_rdpsnd_get_formats(&sndCtxt->server_formats);
+
+    if (sndCtxt->num_server_formats > 0)
+        sndCtxt->src_format = &sndCtxt->server_formats[0];
+    else {
+        pa_log_error("no server audio formats available");
+        return -1;
+    }
     sndCtxt->Activated = rdpSoundServerActivated;
 
     if (sndCtxt->Initialize(sndCtxt, FALSE) != CHANNEL_RC_OK) {
