@@ -400,9 +400,9 @@ static BOOL select_compatible_audio_format(RdpsndServerContext* context) {
         pa_log_debug("client format #%u: %s (%u channels, %u samples/sec, %u bits/sample)",
                      i,
                      audio_format_get_tag_string(context->client_formats[i].wFormatTag),
-                     context->server_formats[i].nChannels,
-                     context->server_formats[i].nSamplesPerSec,
-                     context->server_formats[i].wBitsPerSample);
+                     context->client_formats[i].nChannels,
+                     context->client_formats[i].nSamplesPerSec,
+                     context->client_formats[i].wBitsPerSample);
     }
 
     for (i = 0; i < context->num_server_formats; i++) {
